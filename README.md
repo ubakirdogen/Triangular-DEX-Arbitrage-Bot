@@ -29,14 +29,7 @@ $ npx hardhat compile
 $ npx hardhat run ./scripts/superArbitDeploy.js --network bscmain_bscrpc
 ```
 
-2. After installing the dependencies, first compile and deploy the contract(for BSC)
-
-```bash
-$ npx hardhat compile
-$ npx hardhat run ./scripts/superArbitDeploy.js --network bscmain_bscrpc
-```
-
-3. After contract deployment, update the contract address in config.js(SUPER_ARBIT_ADDRESS)
+2. After contract deployment, update the contract address in config.js(SUPER_ARBIT_ADDRESS)
    First we fetch all the swap pairs from available DEX platform pools.Only pairs from pools, that are active in last 7 days(can be changed), are fetched.
    This scripts outputs all the available pairs in a json file.(see pairsList.json)
 
