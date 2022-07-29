@@ -2,8 +2,6 @@ const { ethers } = require("hardhat");
 const hre = require("hardhat");
 const { PIVOT_TOKEN } = require("./config");
 
-const WBNB_ADDR = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
-
 async function deploy() {
   // Get the contract to deploy
   const SuperArbit = await hre.ethers.getContractFactory("SuperArbit");
