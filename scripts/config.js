@@ -1,5 +1,5 @@
 module.exports = {
-  SUPER_ARBIT_ADDRESS: "0x13f91455823fFE5b646A220755D3a0c770Ddb0f0", // BSC Mainnet address of arbitrage contract(SuperArbit.sol)
+  SUPER_ARBIT_ADDRESS: "", // BSC Mainnet address of arbitrage contract(SuperArbit.sol)
   FACTORY_ADDRESSES: {
     // Factory contract addresses of chosen DEX'es
     pancake: "0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73",
