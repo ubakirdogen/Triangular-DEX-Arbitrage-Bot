@@ -1,18 +1,20 @@
+const TelegramBot = require("node-telegram-bot-api");
+const botToken = "Bot_Token_Here"; // Replace with your actual Telegram bot token - get from bot father
+const bot = new TelegramBot(botToken, { polling: false }); // Set 'polling' to true if you want to receive updates via polling
+
 const { generateTriads, addPairReserves, calculateProfit, APPROX_GAS_FEE } = require("./arbUtils");
 const hre = require("hardhat");
 const { ethers, network } = require("hardhat");
-const {
-  PIVOT_TOKEN,
-  SUPER_ARBIT_ADDRESS,
-  MATCHED_PAIRS_OUTPUT_FILE,
-  MAX_GAS,
-  BSC_GAS_PRICE,
-  MAX_TRADE_INPUT,
-} = require("./config");
+const { PIVOT_TOKEN, SUPER_ARBIT_ADDRESS, MATCHED_PAIRS_OUTPUT_FILE, MAX_GAS, MAX_TRADE_INPUT } = require("./config");
 
 let execCount = 0; // Delete later...
 
-const checkProfitAndExecute = async function (lucrPaths, router, signer) {
+const sendTelegramNotification = (message) => {
+  bot.sendMessage("CHAT_ID", message); // Replace "CHAT_ID" with your actual Telegram chat ID(find it here -https://api.telegram.org/botYOUR_TELEGRAM_BOT_TOKEN/getUpdates)
+};
+
+
+const checkProfitAndExecute = async function (lucrPaths, router, signer, gasPrice) {
   console.log("Static batch check starts...");
   const startToken = PIVOT_TOKEN;
   for (const lucrPath of lucrPaths) {
@@ -49,18 +51,23 @@ const checkProfitAndExecute = async function (lucrPaths, router, signer) {
         let gas = await router.estimateGas.superSwap(path.execAmounts, path.execPools, startToken);
         console.log("Gas(static) used: ", gas);
         path.gas = gas.toString();
-        const newProfit = ethers.BigNumber.from(path.expectedProfitBN)
-          .sub(gas.mul(BSC_GAS_PRICE.toString()))
-          .add(APPROX_GAS_FEE);
+        const gasCost = gas.mul(ethers.BigNumber.from(gasPrice));
+        const newProfit = ethers.BigNumber.from(path.expectedProfitBN).sub(gasCost).add(APPROX_GAS_FEE);
         console.log("New Profit", parseFloat(ethers.utils.formatEther(newProfit)));
         if (newProfit.gt(0)) {
           await router.callStatic.superSwap(path.execAmounts, path.execPools, startToken, { gasLimit: MAX_GAS });
           router.superSwap(path.execAmounts, path.execPools, startToken, { gasLimit: MAX_GAS });
           console.log("!!!!EXECUTED!!!");
           execCount++;
+          // ---Send a Telegram notification when a trade is executed
+          const notificationMessage = `Trade executed!\nProfit: ${parseFloat(ethers.utils.formatEther(newProfit))} BNB`;
+          sendTelegramNotification(notificationMessage);
         }
       } catch (error) {
         console.log(error.reason);
+        // ---Send a Telegram notification when an error occurs
+        const errorMessage = `Error occurred while executing trade:\n${error.reason}`;
+        sendTelegramNotification(errorMessage);
       }
     }
   }
@@ -71,6 +78,11 @@ const main = async () => {
   // ---connect to router and other stuff, reorg later---
   const router = await ethers.getContractAt("SuperArbit", SUPER_ARBIT_ADDRESS);
   const signer = await ethers.getSigner();
+
+  // Fetch the current gas price from the BSC network
+  const gasPrice = await ethers.provider.getGasPrice();
+  console.log("Current gas price:", parseFloat(ethers.utils.formatUnits(gasPrice, "gwei")), "gwei");
+
   let triads = generateTriads(MATCHED_PAIRS_OUTPUT_FILE); // generate triads with pivot token -> WBNB
   let allLucrPathsPassed = [];
   while (true) {
@@ -93,7 +105,7 @@ const main = async () => {
       console.log("Length of lucrative triads in current batch:", lucrPaths.length);
       //-------------------------------------
       //--Here comes the check/execute stuff
-      const lucrPathsPassed = await checkProfitAndExecute(lucrPaths, router, signer);
+      const lucrPathsPassed = await checkProfitAndExecute(lucrPaths, router, signer, gasPrice);
       if (lucrPathsPassed.length > 0) allLucrPathsPassed = allLucrPathsPassed.concat(lucrPathsPassed);
       console.log("Length all lucrative paths passed: ", allLucrPathsPassed.length);
       console.log(`-------Total number of executions: ${execCount}\n`);
