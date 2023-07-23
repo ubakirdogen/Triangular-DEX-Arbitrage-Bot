@@ -1,9 +1,18 @@
-const { generateTriads, addPairReserves, calculateProfit } = require("./arbUtils");
+const TelegramBot = require("node-telegram-bot-api");
+const botToken = "Bot_Token_Here"; // Replace with your actual Telegram bot token - get from bot father
+const bot = new TelegramBot(botToken, { polling: false }); // Set 'polling' to true if you want to receive updates via polling
+
+const { generateTriads, addPairReserves, calculateProfit, APPROX_GAS_FEE } = require("./arbUtils");
 const hre = require("hardhat");
 const { ethers, network } = require("hardhat");
 const { PIVOT_TOKEN, SUPER_ARBIT_ADDRESS, MATCHED_PAIRS_OUTPUT_FILE, MAX_GAS, MAX_TRADE_INPUT } = require("./config");
 
 let execCount = 0; // Delete later...
+
+const sendTelegramNotification = (message) => {
+  bot.sendMessage("CHAT_ID", message); // Replace "CHAT_ID" with your actual Telegram chat ID(find it here -https://api.telegram.org/botYOUR_TELEGRAM_BOT_TOKEN/getUpdates)
+};
+
 
 const checkProfitAndExecute = async function (lucrPaths, router, signer, gasPrice) {
   console.log("Static batch check starts...");
@@ -42,17 +51,23 @@ const checkProfitAndExecute = async function (lucrPaths, router, signer, gasPric
         let gas = await router.estimateGas.superSwap(path.execAmounts, path.execPools, startToken);
         console.log("Gas(static) used: ", gas);
         path.gas = gas.toString();
-        const gasCost = gas.mul(gasPrice);
-        const newProfit = ethers.BigNumber.from(path.expectedProfitBN).sub(gasCost);
+        const gasCost = gas.mul(ethers.BigNumber.from(gasPrice));
+        const newProfit = ethers.BigNumber.from(path.expectedProfitBN).sub(gasCost).add(APPROX_GAS_FEE);
         console.log("New Profit", parseFloat(ethers.utils.formatEther(newProfit)));
         if (newProfit.gt(0)) {
           await router.callStatic.superSwap(path.execAmounts, path.execPools, startToken, { gasLimit: MAX_GAS });
           router.superSwap(path.execAmounts, path.execPools, startToken, { gasLimit: MAX_GAS });
           console.log("!!!!EXECUTED!!!");
           execCount++;
+          // ---Send a Telegram notification when a trade is executed
+          const notificationMessage = `Trade executed!\nProfit: ${parseFloat(ethers.utils.formatEther(newProfit))} BNB`;
+          sendTelegramNotification(notificationMessage);
         }
       } catch (error) {
         console.log(error.reason);
+        // ---Send a Telegram notification when an error occurs
+        const errorMessage = `Error occurred while executing trade:\n${error.reason}`;
+        sendTelegramNotification(errorMessage);
       }
     }
   }
